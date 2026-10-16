@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Env & secrets
+.env
+harness-keys.txt
+
+# Docker volumes
+pgdata/
+history/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Trae
+.trae/tmp_*

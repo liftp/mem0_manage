@@ -1,0 +1,28 @@
+# Codex CLI 接入 mem0 全局记忆
+#
+# mem0 server 是纯 REST API（无 MCP 端点），Codex 无法用 mcp_servers 直连。
+# 两种用法：
+#
+# 1) 在 AGENTS.md / 项目说明里写明记忆协议，让 Codex 按需 curl（推荐）
+# 2) 自己包一个薄 MCP server 转发到 REST 接口
+#
+# 将 <CODEX_KEY> 替换为 harness-keys.txt 中 codex= 后面的值。
+# 服务地址: http://127.0.0.1:8000
+
+# ---- 记忆协议（贴进 AGENTS.md）----
+#
+# 本项目接入 mem0 全局记忆服务。所有请求带 header:
+#   X-API-Key: <CODEX_KEY>
+#
+# 写记忆:
+#   curl -X POST http://127.0.0.1:8000/mem0-agent/memories \
+#     -H "X-API-Key: <CODEX_KEY>" -H "Content-Type: application/json" \
+#     -d '{"messages":[{"role":"user","content":"<要记住的事实>"}],"infer":true}'
+#
+# 读记忆:
+#   curl -X POST http://127.0.0.1:8000/mem0-agent/search \
+#     -H "X-API-Key: <CODEX_KEY>" -H "Content-Type: application/json" \
+#     -d '{"query":"<检索词>","top_k":5}'
+#
+# scope 省略 = 个人跨 harness 共享区 (proj_default:u_default)，其他 harness 可见。
+# 私有 scope: "scope": "proj_default:u_default:a_codex"

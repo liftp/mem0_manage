@@ -1,0 +1,11 @@
+{
+  "__version__": {
+    "sentence_transformers": "2.7.0.dev0",
+    "transformers": "4.39.3",
+    "pytorch": "2.1.0+cu121"
+  },
+  "prompts": {
+    "query": "Represent this sentence for searching relevant passages: "
+  },
+  "default_prompt_name": null
+}

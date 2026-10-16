@@ -1,0 +1,86 @@
+name: mem0-agent-memory
+
+services:
+  postgres:
+    # Mirrored tag (pgvector/pgvector is not pullable from docker.io directly)
+    image: docker.1panel.live/pgvector/pgvector:pg16
+    restart: unless-stopped
+    shm_size: "256mb"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -q -d postgres -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres_db:/var/lib/postgresql/data
+      - ./server/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - mem0_network
+
+  mem0:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+      args:
+        BASE_IMAGE: docker.1ms.run/library/python:3.12-slim
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+      - DASHBOARD_URL=http://localhost:3000
+      - APP_DB_NAME=${APP_DB_NAME:-mem0_app}
+      # ---- LLM provider (运行时切换) ----
+      - LLM_PROVIDER=${LLM_PROVIDER:-deepseek}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-chat}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      # OpenAI 兼容网关覆盖 (DashScope / SiliconFlow / vLLM ...)
+      - OPENAI_BASE_URL_OVERRIDE=${OPENAI_BASE_URL_OVERRIDE:-}
+      # ---- Embedder ----
+      - EMBEDDER_PROVIDER=${EMBEDDER_PROVIDER:-fastembed}
+      - OPENAI_EMBEDDER_MODEL=${OPENAI_EMBEDDER_MODEL:-text-embedding-3-small}
+      - OPENAI_EMBEDDER_BASE_URL=${OPENAI_EMBEDDER_BASE_URL:-}
+      - EMBEDDER_MODEL=${EMBEDDER_MODEL:-BAAI/bge-small-en-v1.5}
+      - EMBEDDING_DIMS=${EMBEDDING_DIMS:-384}
+      # fastembed 模型下载镜像 (huggingface.co 不可达时)
+      - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
+      # 禁用 hf_xet CAS 后端 (镜像源下会 401); 模型已固化在镜像内
+      - HF_XET_DISABLE=1
+      - FASTEMBED_CACHE_DIR=/app/.fastembed_cache
+      # ---- Postgres ----
+      - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - POSTGRES_DB=${POSTGRES_DB:-postgres}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_COLLECTION_NAME=${POSTGRES_COLLECTION_NAME:-memories}
+      # ---- misc ----
+      - JWT_SECRET=${JWT_SECRET}
+      - AUTH_DISABLED=${AUTH_DISABLED:-false}
+      - MEM0_TELEMETRY=${MEM0_TELEMETRY:-false}
+      - DEFAULT_PROJECT=${DEFAULT_PROJECT:-default}
+    ports:
+      - "${MEM0_PORT:-8000}:8000"
+    volumes:
+      - mem0_history:/app/history
+    networks:
+      - mem0_network
+
+volumes:
+  postgres_db:
+  mem0_history:
+
+networks:
+  mem0_network:
+    driver: bridge
