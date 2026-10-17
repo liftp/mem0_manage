@@ -3,7 +3,7 @@ name: mem0-agent-memory
 services:
   postgres:
     # Mirrored tag (pgvector/pgvector is not pullable from docker.io directly)
-    image: docker.1panel.live/pgvector/pgvector:pg16
+    image: pgvector/pgvector:pg16
     restart: unless-stopped
     shm_size: "256mb"
     environment:
@@ -28,6 +28,11 @@ services:
       dockerfile: server/Dockerfile
       args:
         BASE_IMAGE: docker.1ms.run/library/python:3.12-slim
+        # 透传 WSL-NAT-PROXY 给构建容器, 让 pip 能出网装包
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        http_proxy: ${http_proxy:-}
+        https_proxy: ${https_proxy:-}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -55,9 +60,17 @@ services:
       - EMBEDDING_DIMS=${EMBEDDING_DIMS:-384}
       # fastembed 模型下载镜像 (huggingface.co 不可达时)
       - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
-      # 禁用 hf_xet CAS 后端 (镜像源下会 401); 模型已固化在镜像内
+      # 禁用 hf_xet CAS 后端 (镜像源下会 401)
       - HF_XET_DISABLE=1
       - FASTEMBED_CACHE_DIR=/app/.fastembed_cache
+      # 离线模式: 嵌入模型已随镜像固化在 /app/models/ 且经 specific_model_path 注入,
+      # 绝不走网络。HF_HUB_OFFLINE=1 可彻底关掉 fastembed 对 HF Hub 的版本校验请求,
+      # 避免经代理访问 huggingface.co 时被 502 阻断 (此前 502 'Connection error' 即源于此)。
+      - HF_HUB_OFFLINE=1
+      # 运行时代理仅用于 LLM 出网 (deepseek/openai 等); 嵌入/向量库完全离线, 与代理无关。
+      - HTTP_PROXY=http://172.20.240.1:17890
+      - HTTPS_PROXY=http://172.20.240.1:17890
+      - NO_PROXY=postgres,localhost,127.0.0.1,mem0,mem0-mcp,*.local
       # ---- Postgres ----
       - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
       - POSTGRES_PORT=${POSTGRES_PORT:-5432}
@@ -74,12 +87,14 @@ services:
       - "${MEM0_PORT:-8000}:8000"
     volumes:
       - mem0_history:/app/history
+      - fastembed_cache:/app/.fastembed_cache
     networks:
       - mem0_network
 
 volumes:
   postgres_db:
   mem0_history:
+  fastembed_cache:
 
 networks:
   mem0_network:

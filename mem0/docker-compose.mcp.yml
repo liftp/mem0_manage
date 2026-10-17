@@ -1,0 +1,29 @@
+# Overlay for the standalone MCP forwarding service.
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.mcp.yml up -d
+services:
+  mem0-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    container_name: mem0-agent-memory-mcp
+    restart: unless-stopped
+    environment:
+      - MEM0_BASE_URL=http://mem0:8000
+      - MCP_PORT=8001
+      # The Bearer sent by the WorkBuddy `mem0-global` config is forwarded as
+      # X-API-Key per request. Set MEM0_HARNESS_KEY only as a fixed fallback.
+      - MEM0_HARNESS_KEY=${MEM0_HARNESS_KEY:-}
+      # The MCP container only talks to the in-cluster mem0 service; clear the
+      # build-time egress proxy so no internal call is ever routed through it
+      # (which would 502 every request). Defense-in-depth alongside the
+      # trust_env=False httpx client in mcp_server.py.
+      - HTTP_PROXY=
+      - HTTPS_PROXY=
+      - NO_PROXY=mem0,localhost,127.0.0.1
+    ports:
+      - "8001:8001"
+    depends_on:
+      - mem0
+    networks:
+      - mem0_network

@@ -50,7 +50,7 @@ fi
 
 # ---------- 2. 起容器 ----------
 log "启动 docker compose (postgres + mem0-server) ..."
-$DOCKER compose up -d --build 2>&1 | tail -5
+$DOCKER compose up -d --build 2>&1 | tee /tmp/mem0_bootstrap.log
 
 log "等待 API 就绪 ..."
 for i in $(seq 1 60); do

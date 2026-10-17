@@ -1,0 +1,37 @@
+# Dashboard 叠加配置 (Option A: 接入官方图形管理后台)
+#
+# 用法 (与本项目的 docker-compose.yml 叠加):
+#   docker compose -f docker-compose.yml -f docker-compose.dashboard.yml up -d --build
+#
+# 前提:
+#   1. 先跑 scripts/fetch_dashboard.sh 把官方 dashboard 源码拉到 ./dashboard
+#   2. 主 compose 已存在 services: mem0 与 networks: mem0_network (本项目默认满足)
+#
+# 关键环境变量:
+#   NEXT_PUBLIC_API_URL  -> 浏览器(你的 Windows)访问 API 的地址。
+#                           WSL2 会把 Windows 的 localhost 自动转发进 WSL 容器, 所以填 http://localhost:8000
+#   API_INTERNAL_URL     -> dashboard 容器内侧访问 mem0 服务, 走 compose 网络, 用服务名 mem0:8000
+#   mem0 服务的 DASHBOARD_URL(已在主 compose 设为 http://localhost:3000) 必须 == 浏览器访问 dashboard 的 origin, 否则 CORS 拦截。
+
+services:
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+      args:
+        # npm install 需要出网, 透传 WSL-NAT-PROXY (与 mem0 构建同理)
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        http_proxy: ${http_proxy:-}
+        https_proxy: ${https_proxy:-}
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=${DASHBOARD_API_URL:-http://localhost:8000}
+      - API_INTERNAL_URL=http://mem0:8000
+    depends_on:
+      mem0:
+        condition: service_started
+    networks:
+      - mem0_network
